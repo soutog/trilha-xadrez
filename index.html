@@ -1,0 +1,781 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trilha de Xadrez</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;700;800&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet">
+<style>
+:root{
+  /* Layout: one reading column. The e-file is the spine: a pawn starts on e2 and
+     advances one square per phase until it promotes on e8. */
+  --bg:#eef0ea;
+  --surface:#fbfcf9;
+  --ink:#18211c;
+  --muted:#56625b;
+  --line:#d3d9cf;
+  --accent:#216546;
+  --accent-ink:#ffffff;
+  --accent-soft:#dcebe2;
+  --sq-light:#e9e1c8;
+  --sq-dark:#6a9a7d;
+  --warn:#8a4f00;
+  --warn-bg:#fbeed3;
+  --font-display:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-body:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --font-mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#111512; --surface:#1a201c; --ink:#e7ece6; --muted:#9eaaa2; --line:#2d3730;
+    --accent:#7bcba0; --accent-ink:#0c1a12; --accent-soft:#213529;
+    --sq-light:#b8b193; --sq-dark:#3f6b53; --warn:#f1c670; --warn-bg:#392d12;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#111512; --surface:#1a201c; --ink:#e7ece6; --muted:#9eaaa2; --line:#2d3730;
+  --accent:#7bcba0; --accent-ink:#0c1a12; --accent-soft:#213529;
+  --sq-light:#b8b193; --sq-dark:#3f6b53; --warn:#f1c670; --warn-bg:#392d12;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font-body);font-size:16px;line-height:1.55}
+.wrap{max-width:760px;margin:0 auto;padding:20px 16px 64px;display:flex;flex-direction:column;gap:28px}
+h1,h2,h3{font-family:var(--font-display);text-wrap:balance;margin:0;line-height:1.15}
+h1{font-size:clamp(1.9rem,6vw,2.6rem);font-weight:800;letter-spacing:-.01em}
+h2{font-size:1.35rem;font-weight:700}
+h3{font-size:1rem;font-weight:700}
+p{margin:0}
+a{color:var(--accent);text-underline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:4px}
+.mono{font-family:var(--font-mono);font-variant-numeric:tabular-nums}
+.muted{color:var(--muted)}
+.small{font-size:.875rem}
+
+header.top{display:flex;flex-direction:column;gap:10px}
+.lede{max-width:60ch;color:var(--muted)}
+nav.jump{display:flex;flex-wrap:wrap;gap:8px}
+nav.jump a{font-size:.875rem;text-decoration:none;border:1px solid var(--line);background:var(--surface);color:var(--ink);padding:6px 12px;border-radius:999px}
+
+/* e-file strip */
+.file{display:grid;grid-template-columns:repeat(7,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.sq{position:relative;border:0;padding:0;cursor:pointer;aspect-ratio:1/1;min-height:44px;display:flex;align-items:center;justify-content:center;font:inherit;color:#1a241e}
+.sq.l{background:var(--sq-light)}
+.sq.d{background:var(--sq-dark)}
+.sq .coord{position:absolute;left:5px;bottom:3px;font-family:var(--font-mono);font-size:.7rem;opacity:.8}
+.sq .pawn{font-size:clamp(1.5rem,7vw,2.4rem);line-height:1}
+.sq .tick{position:absolute;right:5px;top:3px;font-family:var(--font-mono);font-size:.7rem}
+.file-caption{display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:18px;display:flex;flex-direction:column;gap:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+.spread{justify-content:space-between}
+.eyebrow{font-family:var(--font-mono);font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+
+.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:10px}
+.steps li{display:grid;grid-template-columns:64px 1fr;gap:12px;align-items:start}
+.steps .min{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.875rem;color:var(--accent);padding-top:2px}
+.week{display:grid;grid-template-columns:repeat(7,1fr);gap:6px}
+.day{border:1px solid var(--line);border-radius:8px;padding:6px 0;text-align:center;font-family:var(--font-mono);font-size:.75rem;color:var(--muted)}
+.day.on{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+.day.today{border-color:var(--accent);color:var(--ink)}
+.day.on.today{color:var(--accent-ink)}
+
+button.btn{font:inherit;font-weight:600;border:1px solid var(--accent);background:var(--accent);color:var(--accent-ink);padding:10px 16px;border-radius:8px;cursor:pointer;min-height:44px}
+button.btn.ghost{background:transparent;color:var(--accent)}
+button.btn[disabled]{opacity:.55;cursor:default}
+input.num{font:inherit;font-family:var(--font-mono);width:110px;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-height:44px}
+.txt{font:inherit;font-family:var(--font-mono);font-size:.85rem;flex:1 1 180px;min-width:0;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink);min-height:44px}
+textarea.txt{flex:none;overflow-wrap:anywhere;resize:vertical}
+.stats{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.stat{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.stat b{display:block;font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:1.25rem;font-weight:500}
+.stat span{font-size:.8rem;color:var(--muted)}
+.notice{background:var(--warn-bg);color:var(--warn);border-radius:8px;padding:10px 12px;font-size:.9rem}
+.notice a{color:inherit}
+.spark{width:100%;height:56px;display:block}
+
+/* phases */
+.phases{display:flex;flex-direction:column;gap:12px}
+details.phase{background:var(--surface);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+details.phase.current{border-color:var(--accent)}
+details.phase>summary{list-style:none;cursor:pointer;padding:14px 16px;display:grid;grid-template-columns:44px 1fr auto;gap:12px;align-items:center}
+details.phase>summary::-webkit-details-marker{display:none}
+.badge{width:44px;height:44px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-family:var(--font-mono);font-size:.95rem;color:#1a241e}
+.badge.l{background:var(--sq-light)} .badge.d{background:var(--sq-dark)}
+.sum-title{display:flex;flex-direction:column;gap:2px;min-width:0}
+.sum-title .range{font-size:.85rem;color:var(--muted)}
+.count{font-family:var(--font-mono);font-variant-numeric:tabular-nums;font-size:.85rem;color:var(--muted);white-space:nowrap}
+.here{display:inline-block;font-family:var(--font-mono);font-size:.7rem;letter-spacing:.05em;text-transform:uppercase;background:var(--accent);color:var(--accent-ink);border-radius:999px;padding:2px 8px;margin-left:8px;vertical-align:middle}
+.phase-body{padding:4px 16px 18px;display:flex;flex-direction:column;gap:18px;border-top:1px solid var(--line)}
+.phase-body>p{max-width:62ch}
+.bar{height:6px;background:var(--line);border-radius:999px;overflow:hidden}
+.bar>i{display:block;height:100%;background:var(--accent);width:0}
+.block{display:flex;flex-direction:column;gap:8px}
+ul.items{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ul.items li{display:grid;grid-template-columns:28px 1fr;gap:10px;padding:10px 0;border-top:1px solid var(--line)}
+ul.items li:first-child{border-top:0}
+ul.items input[type=checkbox]{width:22px;height:22px;margin:2px 0 0;accent-color:var(--accent)}
+.it-title{font-weight:600;overflow-wrap:anywhere}
+.it-title a{color:var(--ink)}
+li.done .it-title, li.done .it-title a{color:var(--muted);text-decoration:line-through}
+.tags{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0}
+.tag{font-family:var(--font-mono);font-size:.7rem;letter-spacing:.03em;text-transform:uppercase;border:1px solid var(--line);border-radius:4px;padding:1px 6px;color:var(--muted)}
+.tag.k-ler{border-color:var(--accent);color:var(--accent)}
+.tag.k-video{border-style:dashed}
+.note{font-size:.9rem;color:var(--muted);max-width:60ch}
+.gates{background:var(--accent-soft);border-radius:10px;padding:12px 14px}
+.gates ul.items li{border-color:transparent;padding:6px 0}
+
+.tools{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.tool{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--surface);display:flex;flex-direction:column;gap:4px}
+.tool a{font-weight:600}
+ol.diag{margin:0;padding-left:20px;display:flex;flex-direction:column;gap:8px;max-width:64ch}
+.status{font-family:var(--font-mono);font-size:.75rem;color:var(--muted)}
+footer{font-size:.85rem;color:var(--muted);max-width:64ch}
+@media (max-width:420px){
+  .stats{grid-template-columns:1fr 1fr 1fr}
+  .steps li{grid-template-columns:56px 1fr}
+  details.phase>summary{grid-template-columns:40px 1fr auto;padding:12px}
+  .badge{width:40px;height:40px}
+}
+@media (prefers-reduced-motion: reduce){*{scroll-behavior:auto!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <span class="eyebrow">30 min por dia · leitura primeiro · PT e EN</span>
+  <h1>Trilha de Xadrez</h1>
+  <p class="lede">Sete fases, do primeiro lance aos títulos. Cada fase tem leituras, prática e sinais claros de quando avançar. O peão sobe uma casa por fase, de e2 até a promoção em e8.</p>
+  <nav class="jump" aria-label="Seções">
+    <a href="#hoje">Sessão de hoje</a>
+    <a href="#rating">Rating</a>
+    <a href="#aparelhos">Outro aparelho</a>
+    <a href="#trilha">Fases</a>
+    <a href="#ferramentas">Ferramentas</a>
+    <a href="#travou">Se você travar</a>
+  </nav>
+</header>
+
+<section aria-label="Posição na trilha">
+  <div class="file" id="file"></div>
+  <div class="file-caption small muted" style="margin-top:8px">
+    <span id="where"></span>
+    <span class="status" id="status">progresso salvo neste aparelho</span>
+  </div>
+</section>
+
+<section class="card" id="hoje">
+  <div class="row spread">
+    <div>
+      <span class="eyebrow" id="today-label"></span>
+      <h2 id="today-title"></h2>
+    </div>
+    <button class="btn" id="done-today" type="button">Concluí a sessão de hoje</button>
+  </div>
+  <ol class="steps" id="today-steps"></ol>
+  <div class="week" id="week" aria-label="Sessões desta semana"></div>
+  <div class="stats">
+    <div class="stat"><b id="st-week">0/6</b><span>sessões na semana</span></div>
+    <div class="stat"><b id="st-total">0</b><span>sessões no total</span></div>
+    <div class="stat"><b id="st-hours">0 h</b><span>horas de estudo</span></div>
+  </div>
+  <p class="small muted">Semana padrão: tática e estudo na segunda, quarta e sexta; uma partida 10+5 na terça e na quinta; análise no sábado; leitura livre no domingo. Um terço tática, um terço jogar e analisar, um terço o resto. Nos intervalos do dia: um lance de correspondência ou três quebra-cabeças no celular.</p>
+</section>
+
+<section class="card" id="rating">
+  <div>
+    <span class="eyebrow">Checkpoint a cada 4 semanas</span>
+    <h2>Seu rating de rápidas no Lichess</h2>
+  </div>
+  <form class="row" id="rating-form">
+    <label for="rating-input" class="small">Rating atual</label>
+    <input class="num" id="rating-input" type="number" inputmode="numeric" min="400" max="3200" placeholder="1200">
+    <button class="btn ghost" type="submit">Registrar</button>
+  </form>
+  <div id="rating-out" class="small muted">Ainda sem registros. Informe seu rating de partidas rápidas para o peão ir à casa certa.</div>
+  <div id="rating-notice"></div>
+  <p class="small muted">Use sempre o mesmo ritmo (rápidas, 10+5) para comparar. O rating do Lichess costuma ficar acima do Chess.com e do FIDE; os números das fases são do Lichess até e6.</p>
+</section>
+
+<section class="card" id="aparelhos">
+  <div>
+    <span class="eyebrow">Celular e computador</span>
+    <h2>Levar o progresso para outro aparelho</h2>
+  </div>
+  <p class="small muted" style="max-width:62ch">Copie o código aqui e importe no outro aparelho. Importar junta os dois progressos, sem apagar nada. Serve também como cópia de segurança: guarde o código em uma nota.</p>
+  <div class="row">
+    <button class="btn ghost" id="copy-code" type="button">Copiar código de progresso</button>
+    <button class="btn ghost" id="copy-link" type="button">Copiar link com progresso</button>
+  </div>
+  <form class="row" id="import-form">
+    <label for="import-input" class="small">Código ou link</label>
+    <input class="txt" id="import-input" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="cole aqui">
+    <button class="btn ghost" type="submit">Importar</button>
+  </form>
+  <textarea class="txt" id="code-out" rows="4" readonly hidden aria-label="Código de progresso"></textarea>
+  <div class="small muted" id="backup-msg" role="status"></div>
+</section>
+
+<section id="trilha" style="display:flex;flex-direction:column;gap:14px">
+  <div>
+    <h2>As sete fases</h2>
+    <p class="muted small" style="margin-top:4px;max-width:62ch">Marque cada item ao concluir. Os prazos são estimativas para 30 minutos diários e variam muito de pessoa para pessoa. Livros pagos aparecem como “livro”; todo o resto é gratuito.</p>
+  </div>
+  <div class="phases" id="phases"></div>
+</section>
+
+<section id="ferramentas" style="display:flex;flex-direction:column;gap:12px">
+  <h2>Ferramentas</h2>
+  <div class="tools" id="tools"></div>
+</section>
+
+<section class="card" id="travou">
+  <h2>Se você travar</h2>
+  <p class="muted" style="max-width:62ch">Três checkpoints seguidos sem subir é sinal para revisar o método, não para estudar mais horas. Passe por esta lista na ordem.</p>
+  <ol class="diag">
+    <li><b>Ritmo.</b> Você está jogando rápidas de 10+5 ou só blitz? Blitz diverte, mas quase não ensina abaixo de 1800.</li>
+    <li><b>Derrotas.</b> Pegue as últimas dez e classifique o lance que perdeu cada uma: peça pendurada, tática vista tarde, relógio, abertura ou final. A categoria mais comum vira o foco das próximas quatro semanas.</li>
+    <li><b>Tática.</b> Acerto abaixo de 70% nos quebra-cabeças? Baixe a dificuldade e resolva sem relógio, com a linha inteira na cabeça antes de mover.</li>
+    <li><b>Leitura ativa.</b> Reproduza os lances num tabuleiro ou num estudo do Lichess e tente adivinhar o próximo lance antes de ler.</li>
+    <li><b>Constância.</b> Se a semana apertar, faça 15 minutos, mas não zere. Seis sessões curtas valem mais que uma longa.</li>
+    <li><b>Nível do material.</b> Se o livro da fase parece impossível, volte uma fase nesse assunto. Se parece fácil demais, pule o capítulo e faça só o teste.</li>
+  </ol>
+  <p class="small"><a href="https://lichess.org/@/NoelStuder/blog/7-reasons-why-youre-not-improving-at-chess/vFLoLRBw">Leitura de apoio: 7 Reasons Why You're Not Improving at Chess, do GM Noël Studer</a></p>
+</section>
+
+<footer>
+  <p><b>Sobre chegar a grande mestre.</b> O título exige rating FIDE de 2500 e três normas em torneios presenciais, e quase todos os GMs se dedicam ao jogo desde a infância, com muitas horas por dia. Com 30 minutos diários (cerca de 180 horas por ano), o que esta trilha entrega de forma realista é progresso mensurável fase a fase até o nível de clube forte. As fases e7 e e8 estão aqui para o mapa ficar completo e pedem mais tempo, torneios e treinador.</p>
+</footer>
+</div>
+
+<script>
+(function(){
+"use strict";
+
+/* ---------- conteúdo ---------- */
+// item: [id, tipo, idioma, custo(g|l), título, url, nota, área]
+var PHASES=[
+{id:"f0",sq:"e2",name:"Fundamentos",range:"do zero até 1000",hi:1000,time:"1 a 3 meses",
+ tat:"mate em 1, mate em 2 e peça pendurada",
+ goal:"Conhecer todas as regras, ler notação e terminar partidas sem entregar a dama de graça.",
+ gates:["Dou mate com dama e com torre contra rei sozinho, sem ajuda","Leio e escrevo lances em notação algébrica (e4, Cf3, O-O)","Rápidas em torno de 1000 há quatro semanas"],
+ blocks:[
+  ["Regras e tabuleiro",[
+   ["f0-basics","praticar","PT·EN","g","Lichess · Chess basics (noções básicas)","https://lichess.org/learn","Todas as regras em lições interativas curtas. Vá até o fim, incluindo roque e en passant.","regras"],
+   ["f0-coord","praticar","PT·EN","g","Lichess · Coordenadas","https://lichess.org/training/coordinate","Cinco minutos por dia até localizar as casas sem pensar. Sem notação, nenhum livro é legível.","regras"],
+   ["f0-artpt","ler","PT","g","Chess.com · Artigos para iniciantes","https://www.chess.com/pt/articles/beginners","Textos curtos em português sobre regras, primeiros planos e como começar uma partida.","regras"]
+  ]],
+  ["Primeiros mates e táticas",[
+   ["f0-mates","praticar","PT·EN","g","Lichess · Practice: Piece Checkmates e Checkmate Patterns","https://lichess.org/practice","Mate de dama, de torre e os padrões clássicos, jogando contra o computador.","finais"],
+   ["f0-m1","praticar","PT·EN","g","Lichess · Quebra-cabeças por tema: mate em 1 e peça pendurada","https://lichess.org/training/themes","Dez por dia, sem relógio. Acertar importa mais do que a velocidade.","tatica"],
+   ["f0-fischer","ler","EN","l","Bobby Fischer Teaches Chess","","Uma posição por página: você responde e confere na seguinte. Funciona bem em intervalos curtos.","tatica"],
+   ["f0-basico","ler","PT","l","Xadrez Básico (D’Agostini)","","Clássico brasileiro para quem prefere a primeira leitura em português.","regras"]
+  ]],
+  ["Princípios de abertura",[
+   ["f0-smithy","ler","EN","g","Chessable · Smithy's Opening Fundamentals","https://www.chessable.com/smithys-opening-fundamentals/course/21302/","Curso gratuito de princípios: centro, desenvolvimento, roque. Nada de decorar variantes.","abertura"],
+   ["f0-cn","video","EN","g","ChessNetwork · Beginner to Chess Master","https://www.youtube.com/playlist?list=PLQsLDm9Rq9bHKEBnElquF8GuWkI1EJ8Zp","Opcional. Se quiser vídeo nesta fase, esta série é bem organizada.","regras"]
+  ]],
+  ["Jogar",[
+   ["f0-play","jogar","","g","Duas partidas 10+5 por semana","https://lichess.org","O ritmo 10+5 cabe em meia hora. Deixe bullet e blitz para depois. Marque quando virar rotina.","jogo"],
+   ["f0-corr","jogar","","g","Duas ou três partidas por correspondência em andamento","https://lichess.org","Um lance por dia pelo celular: é o melhor uso dos intervalos.","jogo"]
+  ]]
+ ]},
+{id:"f1",sq:"e3",name:"Visão de tabuleiro",range:"1000 a 1300",hi:1300,time:"3 a 6 meses",
+ tat:"garfo, cravada, espeto e ataque descoberto, um tema por semana",
+ goal:"Parar de perder peças em um lance e começar a ganhar as do adversário.",
+ gates:["Antes de cada lance confiro xeques, capturas e ameaças dos dois lados","Rating de quebra-cabeças perto de 1500","Sei oposição e regra do quadrado em finais de rei e peão","Rápidas em torno de 1300 há quatro semanas"],
+ blocks:[
+  ["Tática por tema",[
+   ["f1-predator1","ler","EN","g","Predator at the Chessboard, Livro I (Ward Farnsworth)","https://www.chesstactics.org","Livro inteiro online, explicado em texto corrido em vez de árvores de variantes. Nesta fase: garfos e ataques descobertos. O autor avisa que a versão gratuita pode sair do ar; existe impressa.","tatica"],
+   ["f1-practice","praticar","PT·EN","g","Lichess · Practice: Fundamental Tactics","https://lichess.org/practice","Cravada, espeto, garfo, ataque descoberto, xeque duplo.","tatica"],
+   ["f1-themes","praticar","PT·EN","g","Lichess · Quebra-cabeças por tema","https://lichess.org/training/themes","Um tema por semana. Meta: 80% de acerto sem pressa.","tatica"],
+   ["f1-ttt","praticar","EN","g","Chessable · Typical Tactical Tricks: 500 Ways to Win","https://www.chessable.com/typical-tactical-tricks-500-ways-to-win/course/77784/","Curso gratuito com repetição espaçada dos padrões mais comuns.","tatica"]
+  ]],
+  ["Hábito de pensar",[
+   ["f1-heisman","ler","EN","g","Dan Heisman · Novice Nook","https://chesscafe.com/tag/novice-nook","Colunas premiadas sobre processo de pensamento e segurança das peças. Uma coluna por sessão de leitura.","metodo"],
+   ["f1-chernev","ler","EN","l","Logical Chess: Move by Move (Irving Chernev)","","Todos os lances de cada partida explicados em palavras. Uma partida a cada duas sessões.","estrategia"],
+   ["f1-tatpt","ler","PT","g","Chess.com · Artigos de tática em português","https://www.chess.com/pt-BR/articles/tactics","Para alternar com a leitura em inglês.","tatica"]
+  ]],
+  ["Finais básicos",[
+   ["f1-basicend","ler","EN","g","Chessable · Basic Endgames","https://www.chessable.com/basic-endgames/course/6371/","Curso gratuito que começa na oposição e aprofunda rápido. Agora, só os capítulos de rei e peão.","finais"],
+   ["f1-pawnend","praticar","PT·EN","g","Lichess · Practice: Pawn Endgames","https://lichess.org/practice","Casas-chave e oposição contra o computador.","finais"],
+   ["f1-studies","praticar","EN","g","Lichess · Estudos de finais mais populares","https://lichess.org/study/topic/Endgame/popular","Procure “Beginner Endgames You Must Know!”.","finais"]
+  ]],
+  ["Jogar e revisar",[
+   ["f1-play","jogar","","g","Duas partidas 10+5 por semana","https://lichess.org","Mesmo ritmo sempre, para o rating ser comparável.","jogo"],
+   ["f1-review","praticar","","g","Revisar toda derrota","https://lichess.org/analysis","Primeiro ache sozinho o lance em que a partida virou. Só depois peça a análise do computador e use “Aprenda com seus erros”.","jogo"]
+  ]]
+ ]},
+{id:"f2",sq:"e4",name:"Tática firme e primeiro repertório",range:"1300 a 1600",hi:1600,time:"6 a 12 meses",
+ tat:"remoção do defensor, desvio, atração e mate em 3",
+ goal:"Calcular dois ou três lances com segurança e sair da abertura com uma posição que você entende.",
+ gates:["Tenho repertório mínimo: uma abertura de brancas, uma defesa contra 1.e4 e uma contra 1.d4","Concluí Build Up Your Chess 1 com mais da metade dos pontos nos testes","Rating de quebra-cabeças perto de 1800","Rápidas em torno de 1600 há quatro semanas"],
+ blocks:[
+  ["Curso-base",[
+   ["f2-yus1","ler","EN","l","Build Up Your Chess 1: The Fundamentals (Artur Yusupov)","https://blog.qualitychess.co.uk/5895","24 capítulos, cada um com lição e teste. Um capítulo por semana ocupa as sessões de estudo por seis meses. O link mostra a ordem correta dos nove volumes.","estrategia"],
+   ["f2-predator2","ler","EN","g","Predator at the Chessboard, Livro II","https://www.chesstactics.org","Cravadas, espetos, remoção do defensor e padrões de mate.","tatica"]
+  ]],
+  ["Repertório enxuto",[
+   ["f2-ruy","ler","PT","g","GM Krikor · Aprenda a Ruy Lopez","https://www.chess.com/pt-BR/article/view/aprenda-a-ruy-lopez","Ideias e planos em português, em vez de variantes longas.","abertura"],
+   ["f2-petroff","ler","PT","g","GM Krikor · Aprenda a Defesa Petroff","https://www.chess.com/pt-BR/article/view/aprenda-a-defesa-petroff","Uma defesa sólida contra 1.e4 explicada em artigo.","abertura"],
+   ["f2-sns","ler","EN","g","Guia dos cursos Short & Sweet do Chessable","https://www.chess.com/blog/TheUnidentifiedWolf/comprehensive-guide-to-chessables-free-short-and-sweet-opening-courses","Cursos gratuitos de abertura. Escolha um por cor e fique nele por um ano.","abertura"],
+   ["f2-explorer","praticar","PT·EN","g","Lichess · Aberturas","https://lichess.org/opening","Veja o que realmente se joga no seu nível antes de estudar uma linha.","abertura"],
+   ["f2-listudy","praticar","EN","g","Listudy","https://listudy.org","Repetição espaçada do seu repertório. Gratuito e de código aberto.","abertura"]
+  ]],
+  ["Finais",[
+   ["f2-silman","ler","EN","l","Silman's Complete Endgame Course (Jeremy Silman)","","Organizado por faixa de rating: estude só até a sua classe e pare.","finais"]
+  ]],
+  ["Método",[
+   ["f2-third","ler","EN","g","Noël Studer · The One-Third Rule","https://lichess.org/@/NoelStuder/blog/the-one-third-rule-how-to-take-control-of-your-chess-training/LMmytfrV","A divisão de tempo que esta trilha usa, explicada por um grande mestre.","metodo"],
+   ["f2-lichess101","ler","EN","g","Noël Studer · Lichess 101","https://nextlevelchess.blog/lichess-101-a-comprehensive-grandmaster-guide/","Como tirar tudo do Lichess: análise, estudos e quebra-cabeças.","metodo"],
+   ["f2-mygames","praticar","","g","Estudo “Minhas partidas” no Lichess","https://lichess.org/study","Um capítulo por derrota, com três frases suas: onde errei, por quê, o que faço da próxima vez.","jogo"],
+   ["f2-play","jogar","","g","Duas partidas 10+5 por semana, uma 15+10 por mês","https://lichess.org","A partida mais longa do mês merece uma sessão inteira de análise.","jogo"]
+  ]]
+ ]},
+{id:"f3",sq:"e5",name:"Estratégia e finais",range:"1600 a 1900",hi:1900,time:"1 a 2 anos",
+ tat:"dificuldade “mais difícil”: escreva a linha completa antes de mover",
+ goal:"Ter um plano quando não há tática e converter vantagem nos finais.",
+ gates:["Joguei meu primeiro torneio presencial","Sei de cor as posições de Lucena e Philidor","Comento por escrito minhas partidas longas antes de ligar o computador","Rápidas em torno de 1900 há quatro semanas"],
+ blocks:[
+  ["Curso-base",[
+   ["f3-yus2","ler","EN","l","Boost Your Chess 1: The Fundamentals (Yusupov)","https://blog.qualitychess.co.uk/5895","Segundo volume laranja. Mesmo formato: lição, teste, pontuação.","estrategia"],
+   ["f3-yus3","ler","EN","l","Chess Evolution 1: The Fundamentals (Yusupov)","https://blog.qualitychess.co.uk/5895","Fecha a série laranja, pensada para jogadores até 1500 FIDE.","estrategia"]
+  ]],
+  ["Estratégia",[
+   ["f3-stean","ler","EN","l","Simple Chess (Michael Stean)","","Curto e direto: casas fracas, colunas abertas, estrutura de peões.","estrategia"],
+   ["f3-amateur","ler","EN","l","The Amateur's Mind (Jeremy Silman)","","Mostra como amadores pensam em cada posição e onde o raciocínio falha.","estrategia"],
+   ["f3-sistema","ler","PT","l","Meu Sistema (Aron Nimzowitsch)","https://rafaelleitao.com/os-melhores-livros-de-xadrez","Clássico com edição brasileira. Denso; no link, o GM Rafael Leitão comenta por que não o põe entre os favoritos.","estrategia"]
+  ]],
+  ["Finais",[
+   ["f3-100","ler","EN","l","100 Endgames You Must Know (Jesús de la Villa)","","As posições teóricas que mais aparecem. Duas por sessão de finais.","finais"],
+   ["f3-rook","praticar","PT·EN","g","Lichess · Practice: Rook Endgames","https://lichess.org/practice","Lucena e Philidor até sair no automático.","finais"]
+  ]],
+  ["Partidas comentadas",[
+   ["f3-fischer60","ler","PT·EN","l","Minhas 60 Melhores Partidas (Bobby Fischer)","","Existe em português. Uma partida por domingo, adivinhando os lances.","estrategia"],
+   ["f3-zurich","ler","EN","l","Zurich International Chess Tournament 1953 (David Bronstein)","","Comentários em prosa sobre ideias de meio-jogo. Leitura de longo prazo.","estrategia"]
+  ]],
+  ["Cálculo e tabuleiro real",[
+   ["f3-blind","praticar","EN","g","Listudy · Blind Tactics","https://listudy.org/en/features/blind-tactics","Você vê o tabuleiro de dois lances atrás e resolve de cabeça. Treina visualização.","tatica"],
+   ["f3-dojo","ler","EN","g","ChessDojo · Training Program","https://www.chessdojo.club/training-program-faq","Plano por faixa de rating; a versão gratuita traz algumas tarefas por categoria e registro de tempo. Bom complemento.","metodo"],
+   ["f3-cbx","jogar","PT","","Primeiro torneio presencial","https://cbx.org.br","Procure um clube na sua cidade e os torneios com rating no site da Confederação Brasileira de Xadrez.","jogo"]
+  ]]
+ ]},
+{id:"f4",sq:"e6",name:"Clube forte",range:"1900 a 2200 (FIDE 1700 a 2000, aproximado)",hi:2200,time:"2 a 4 anos",
+ tat:"duas ou três posições difíceis por sessão, com a linha anotada",
+ goal:"Entender estruturas de peões, calcular com disciplina e ter rating FIDE próprio.",
+ gates:["Tenho rating FIDE em ritmo clássico","Mantenho um arquivo comentado das minhas partidas de torneio","Concluí a série azul do Yusupov","Rápidas em torno de 2200 há quatro semanas"],
+ blocks:[
+  ["Curso-base",[
+   ["f4-yusblue","ler","EN","l","Série azul do Yusupov: Build Up 2, Boost 2, Chess Evolution 2","https://blog.qualitychess.co.uk/5895","Subtítulo Beyond the Basics, pensada para jogadores até 1800 FIDE.","estrategia"]
+  ]],
+  ["Estratégia e decisão",[
+   ["f4-structures","ler","EN","l","Chess Structures: A Grandmaster Guide (Mauricio Flores Ríos)","","Planos típicos organizados por estrutura de peões.","estrategia"],
+   ["f4-gulko","ler","EN","l","Lessons with a Grandmaster (Boris Gulko e Joel Sneed)","","Diálogo entre um GM e um amador. Muito elogiado pelo GM Rafael Leitão.","estrategia"],
+   ["f4-gelfand","ler","EN","l","Positional Decision Making in Chess (Boris Gelfand)","","Como um jogador de elite escolhe entre lances igualmente razoáveis.","estrategia"],
+   ["f4-leitao","ler","PT","g","Rafael Leitão · Os melhores livros de xadrez","https://rafaelleitao.com/os-melhores-livros-de-xadrez","Lista comentada em português. Use para escolher as leituras das fases e6 em diante.","metodo"]
+  ]],
+  ["Finais e cálculo",[
+   ["f4-shere","ler","EN","l","Endgame Strategy (Mikhail Shereshevsky)","","Finais práticos: princípios em vez de posições teóricas.","finais"],
+   ["f4-woodpecker","praticar","EN","l","The Woodpecker Method (Axel Smith e Hans Tikkanen)","","Um conjunto grande de exercícios resolvido várias vezes, cada volta mais rápida.","tatica"]
+  ]],
+  ["Torneios",[
+   ["f4-otb","jogar","PT","","Três ou mais torneios clássicos por ano","https://chess-results.com","Resultados e emparceiramentos dos torneios brasileiros ficam aqui.","jogo"]
+  ]]
+ ]},
+{id:"f5",sq:"e7",name:"Rumo a mestre",range:"FIDE 2000 a 2300",hi:2400,time:"anos; pede mais de 30 min por dia",
+ tat:"posições de cálculo dos livros da fase",
+ goal:"Candidato a Mestre (2200) e Mestre FIDE (2300). Daqui em diante contam torneios frequentes e treinador.",
+ gates:["Rating FIDE 2200 (CM)","Rating FIDE 2300 (FM)"],
+ blocks:[
+  ["Leituras",[
+   ["f5-yusgreen","ler","EN","l","Série verde do Yusupov: Build Up 3, Boost 3, Chess Evolution 3","https://blog.qualitychess.co.uk/5895","Subtítulo Mastery, pensada para jogadores até 2100 FIDE.","estrategia"],
+   ["f5-dvo","ler","EN","l","Dvoretsky's Endgame Manual (Mark Dvoretsky)","","Compêndio para consultar durante anos.","finais"],
+   ["f5-kotov","ler","EN","l","Think Like a Grandmaster (Alexander Kotov)","","Lances candidatos e árvore de análise.","tatica"],
+   ["f5-kasparov","ler","PT·EN","l","Meus Grandes Predecessores (Garry Kasparov)","","A história do jogo pelas partidas dos campeões mundiais.","estrategia"],
+   ["f5-nunn","ler","EN","l","Secrets of Grandmaster Play (John Nunn e Peter Griffiths)","","Partidas analisadas em profundidade, com foco na iniciativa.","estrategia"]
+  ]]
+ ]},
+{id:"f6",sq:"e8",name:"Títulos",range:"MI 2400 e GM 2500, com três normas cada",hi:9999,time:"dedicação profissional",
+ tat:"estudos e análise de partidas próprias em profundidade",
+ goal:"Mestre Internacional e Grande Mestre: rating FIDE e três normas em torneios presenciais.",
+ gates:["Três normas de MI e rating FIDE 2400","Três normas de GM e rating FIDE 2500"],
+ blocks:[
+  ["Leituras",[
+   ["f6-school","ler","EN","l","School of Chess Excellence (Mark Dvoretsky)","https://rafaelleitao.com/os-melhores-livros-de-xadrez","Segundo o GM Rafael Leitão, coleção para quem já passou de 2300.","estrategia"],
+   ["f6-hours","ler","EN","g","Chess.com · How Many Hours of Chess Study Does It Take to Be a Grandmaster?","https://chess.com/article/view/chess-grandmaster-hours","Uma estimativa do volume de estudo por trás do título.","metodo"]
+  ]]
+ ]}
+];
+
+var TOOLS=[
+ ["Lichess","https://lichess.org","Jogar, analisar, estudar e resolver quebra-cabeças. Gratuito, sem anúncios, com aplicativo."],
+ ["Chessable","https://www.chessable.com","Livros e cursos com repetição espaçada. Os três cursos gratuitos da trilha bastam para começar."],
+ ["Listudy","https://listudy.org","Repetição espaçada de aberturas, finais e táticas às cegas. Código aberto."],
+ ["ChessTempo","https://chesstempo.com","Treino de tática e treinador de aberturas com cadastro gratuito."],
+ ["Blitz Tactics","https://blitztactics.com","Padrões táticos contra o relógio, para aquecer em dois minutos."],
+ ["Chess.com em português","https://www.chess.com/pt-BR/articles","Artigos de leitura aberta, incluindo os do GM Krikor."],
+ ["Next Level Chess","https://nextlevelchess.blog/simple-not-easy","Blog do GM Noël Studer sobre como treinar sendo adulto e com pouco tempo."],
+ ["ChessDojo","https://www.chessdojo.club/blog","Blog e programa de treino por faixa de rating."],
+ ["GM Krikor no YouTube","http://youtube.com/gmkrikorsm","Vídeos em português, para quando quiser descansar da leitura."],
+ ["Naroditsky no Lichess","https://lichess.org/video/author/Daniel%20Naroditsky","Speedruns comentados lance a lance, catalogados por abertura."]
+];
+
+var KIND={ler:"Ler",praticar:"Praticar",jogar:"Jogar",video:"Vídeo"};
+var DAYS=["D","S","T","Q","Q","S","S"];
+var DAYNAMES=["Domingo","Segunda","Terça","Quarta","Quinta","Sexta","Sábado"];
+
+/* ---------- estado ---------- */
+var KEY="trilha-xadrez-v1";
+var state={done:{},sessions:[],ratings:[],phase:null};
+var openSet={};
+
+function normalize(d){
+  var s={done:{},sessions:[],ratings:[],phase:null};
+  if(!d||typeof d!=="object") return s;
+  if(d.done&&typeof d.done==="object"){ for(var k in d.done){ if(d.done[k]) s.done[k]=1; } }
+  if(Array.isArray(d.sessions)) s.sessions=d.sessions.filter(function(x){return typeof x==="string";}).slice(-2000);
+  if(Array.isArray(d.ratings)) s.ratings=d.ratings.filter(function(x){return x&&typeof x.d==="string"&&typeof x.r==="number";}).slice(-400);
+  if(typeof d.phase==="string") s.phase=d.phase;
+  return s;
+}
+function loadLocal(){ try{ var raw=localStorage.getItem(KEY); if(raw) state=normalize(JSON.parse(raw)); }catch(e){} }
+function saveLocal(){ try{ localStorage.setItem(KEY,JSON.stringify(state)); }catch(e){} }
+
+/* armazenamento na conta (db), quando disponível */
+var ref=null,dirty=false,writing=false,timer=null,retried=false;
+function setStatus(t){ var s=document.getElementById("status"); if(s) s.textContent=t; }
+function persist(){
+  saveLocal();
+  if(!ref) return;
+  dirty=true; clearTimeout(timer); timer=setTimeout(flush,700);
+}
+function flush(){
+  if(writing||!dirty||!ref) return;
+  writing=true; dirty=false;
+  var body=JSON.parse(JSON.stringify(state));
+  ref.set(body).then(function(){
+    writing=false; retried=false; setStatus("progresso salvo na sua conta");
+    if(dirty) flush();
+  },function(e){
+    writing=false;
+    if(e&&e.code==="unavailable"&&!retried){ retried=true; dirty=true; setTimeout(flush,2000+Math.random()*2000); }
+    else { ref=null; setStatus("progresso salvo neste aparelho"); }
+  });
+}
+function connect(){
+  if(!window.claude||typeof window.claude.use!=="function") return;
+  Promise.all([window.claude.use("db"),window.claude.use("user")]).then(function(r){
+    var db=r[0],user=r[1];
+    if(!db||!user) return;
+    return user.id().then(function(uid){
+      if(!uid) return;
+      var docRef=db.doc("data/users/"+uid+"/trilha");
+      ref=docRef;
+      docRef.onSnapshot(function(snap){
+        if(snap.metadata&&snap.metadata.hasPendingWrites) return;
+        if(snap.exists&&!dirty&&!writing){
+          state=normalize(snap.data()); saveLocal(); renderAll();
+        }
+        setStatus("progresso salvo na sua conta");
+      },function(){ ref=null; setStatus("progresso salvo neste aparelho"); });
+    });
+  }).catch(function(){});
+}
+
+/* ---------- utilidades ---------- */
+function el(tag,attrs){
+  var n=document.createElement(tag),i,k;
+  if(attrs){ for(k in attrs){ if(k==="text") n.textContent=attrs[k]; else if(k==="class") n.className=attrs[k]; else n.setAttribute(k,attrs[k]); } }
+  for(i=2;i<arguments.length;i++){ var c=arguments[i]; if(c==null) continue; n.appendChild(typeof c==="string"?document.createTextNode(c):c); }
+  return n;
+}
+function ymd(d){ var m=d.getMonth()+1,day=d.getDate(); return d.getFullYear()+"-"+(m<10?"0":"")+m+"-"+(day<10?"0":"")+day; }
+function today(){ return ymd(new Date()); }
+function phaseIndex(){ for(var i=0;i<PHASES.length;i++){ if(PHASES[i].id===state.phase) return i; } return 0; }
+function phaseForRating(r){ for(var i=0;i<5;i++){ if(r<PHASES[i].hi) return i; } return 5; }
+function allItems(p){ var out=[]; p.blocks.forEach(function(b){ b[1].forEach(function(it){ out.push(it); }); }); return out; }
+function searchUrl(title){ return "https://www.google.com/search?q="+encodeURIComponent(title+" livro xadrez"); }
+function nextItem(p,areas){
+  var items=allItems(p).filter(function(it){ return !state.done[it[0]]&&(it[1]==="ler"||it[1]==="praticar")&&it[7]!=="jogo"; });
+  if(areas){ var f=items.filter(function(it){ return areas.indexOf(it[7])>=0; }); if(f.length) return f[0]; }
+  var reads=items.filter(function(it){ return it[1]==="ler"; });
+  return reads[0]||items[0]||null;
+}
+function itemLink(it){
+  var url=it[5]||searchUrl(it[4]);
+  return el("a",{href:url,text:it[4]});
+}
+
+/* ---------- desenho ---------- */
+function renderFile(){
+  var box=document.getElementById("file"); box.textContent="";
+  var cur=phaseIndex();
+  PHASES.forEach(function(p,i){
+    var b=el("button",{type:"button","class":"sq "+(i%2===0?"l":"d"),"aria-label":"Fase "+p.sq+": "+p.name+(i===cur?" (fase atual)":"")});
+    b.appendChild(el("span",{"class":"coord",text:p.sq}));
+    if(i===cur) b.appendChild(el("span",{"class":"pawn","aria-hidden":"true",text:"♟︎"}));
+    else if(i<cur) b.appendChild(el("span",{"class":"tick","aria-hidden":"true",text:"✓"}));
+    b.addEventListener("click",function(){
+      openSet[p.id]=true; renderPhases();
+      var t=document.getElementById("fase-"+p.sq); if(t) t.scrollIntoView({block:"start"});
+    });
+    box.appendChild(b);
+  });
+  var p=PHASES[cur];
+  document.getElementById("where").textContent="Você está em "+p.sq+": "+p.name+" ("+p.range+")";
+}
+
+function renderToday(){
+  var now=new Date(),dow=now.getDay(),p=PHASES[phaseIndex()];
+  document.getElementById("today-label").textContent=DAYNAMES[dow]+" · fase "+p.sq;
+  var steps=document.getElementById("today-steps"); steps.textContent="";
+  var title;
+  function step(min,node){ var li=el("li",null,el("span",{"class":"min",text:min}),node); steps.appendChild(li); }
+  function study(areas,label){
+    var it=nextItem(p,areas);
+    var d=el("div",null);
+    if(it){ d.appendChild(el("b",{text:label+": "})); d.appendChild(itemLink(it)); d.appendChild(el("div",{"class":"note",text:it[6]})); }
+    else { d.appendChild(el("b",{text:label+": "})); d.appendChild(document.createTextNode("todos os itens desta fase estão marcados. Confira os sinais de passagem e avance o peão.")); }
+    return d;
+  }
+  if(dow===1||dow===3||dow===5){
+    title="Tática e estudo";
+    var t=el("div",null,el("b",{text:"Tática: "}),el("a",{href:"https://lichess.org/training/themes",text:"quebra-cabeças no Lichess"}),el("div",{"class":"note",text:"Foco da fase: "+p.tat+"."}));
+    step("15 min",t);
+    step("15 min",study(dow===5?["finais","abertura"]:null,dow===5?"Finais ou abertura":"Leitura principal"));
+  } else if(dow===2||dow===4){
+    title="Dia de jogar";
+    step("25 min",el("div",null,el("b",{text:"Uma partida 10+5: "}),el("a",{href:"https://lichess.org",text:"abrir o Lichess"}),el("div",{"class":"note",text:"Uma só, com atenção total. Se perder, não jogue a revanche hoje."})));
+    step("5 min",el("div",null,el("b",{text:"Anote "}),"o lance em que a partida virou, antes de ver qualquer análise."));
+  } else if(dow===6){
+    title="Análise da semana";
+    step("20 min",el("div",null,el("b",{text:"Reveja as partidas de terça e quinta: "}),el("a",{href:"https://lichess.org/analysis",text:"tabuleiro de análise"}),el("div",{"class":"note",text:"Ache os erros sozinho primeiro; depois confira com o computador."})));
+    step("10 min",el("div",null,el("b",{text:"Registre "}),"uma lição por partida no seu estudo “Minhas partidas”."));
+  } else {
+    title="Leitura livre";
+    step("30 min",study(["estrategia","metodo"],"Sugestão"));
+  }
+  document.getElementById("today-title").textContent=title;
+
+  var done=state.sessions.indexOf(today())>=0;
+  var btn=document.getElementById("done-today");
+  btn.textContent=done?"Sessão de hoje registrada":"Concluí a sessão de hoje";
+  btn.className="btn"+(done?" ghost":"");
+
+  // semana (segunda a domingo)
+  var wk=document.getElementById("week"); wk.textContent="";
+  var monday=new Date(now.getFullYear(),now.getMonth(),now.getDate()-((dow+6)%7));
+  var n=0;
+  for(var i=0;i<7;i++){
+    var d=new Date(monday.getFullYear(),monday.getMonth(),monday.getDate()+i),key=ymd(d);
+    var on=state.sessions.indexOf(key)>=0; if(on) n++;
+    wk.appendChild(el("div",{"class":"day"+(on?" on":"")+(key===today()?" today":""),title:key,text:DAYS[d.getDay()]}));
+  }
+  document.getElementById("st-week").textContent=n+"/6";
+  document.getElementById("st-total").textContent=String(state.sessions.length);
+  var h=state.sessions.length/2;
+  document.getElementById("st-hours").textContent=(h%1===0?h:h.toFixed(1).replace(".",","))+" h";
+}
+
+function renderRating(){
+  var out=document.getElementById("rating-out"),note=document.getElementById("rating-notice");
+  out.textContent=""; note.textContent="";
+  var rs=state.ratings;
+  if(!rs.length){ out.textContent="Ainda sem registros. Informe seu rating de partidas rápidas para o peão ir à casa certa."; return; }
+  var first=rs[0],last=rs[rs.length-1],diff=last.r-first.r;
+  var line=el("div",{"class":"mono"});
+  line.textContent="Atual "+last.r+" ("+last.d+")"+(rs.length>1?" · início "+first.r+" · "+(diff>=0?"+":"")+diff:"");
+  out.appendChild(line);
+  if(rs.length>1){
+    var w=300,hgt=56,pad=6,min=Infinity,max=-Infinity;
+    rs.forEach(function(x){ if(x.r<min)min=x.r; if(x.r>max)max=x.r; });
+    if(max===min){ max+=10; min-=10; }
+    var pts=rs.map(function(x,i){ return [pad+(w-2*pad)*i/(rs.length-1), hgt-pad-(hgt-2*pad)*(x.r-min)/(max-min)]; });
+    var ns="http://www.w3.org/2000/svg",svg=document.createElementNS(ns,"svg");
+    svg.setAttribute("viewBox","0 0 "+w+" "+hgt); svg.setAttribute("class","spark"); svg.setAttribute("preserveAspectRatio","none");
+    svg.setAttribute("role","img"); svg.setAttribute("aria-label","Evolução do rating de "+first.r+" a "+last.r);
+    var path=document.createElementNS(ns,"polyline");
+    path.setAttribute("points",pts.map(function(q){return q[0].toFixed(1)+","+q[1].toFixed(1);}).join(" "));
+    path.setAttribute("fill","none"); path.setAttribute("stroke","var(--accent)"); path.setAttribute("stroke-width","2"); path.setAttribute("vector-effect","non-scaling-stroke");
+    svg.appendChild(path); out.appendChild(svg);
+  }
+  var cur=phaseIndex(),p=PHASES[cur];
+  if(cur<5&&last.r>=p.hi){
+    note.appendChild(el("div",{"class":"notice",text:"Você atingiu o rating de passagem de "+p.sq+". Confira os outros sinais da fase e avance o peão para "+PHASES[cur+1].sq+"."}));
+  } else if(rs.length>=3&&(last.r-rs[rs.length-3].r)<15){
+    var nt=el("div",{"class":"notice"},"Três checkpoints sem subir. Passe pela lista ",el("a",{href:"#travou",text:"Se você travar"}),".");
+    note.appendChild(nt);
+  }
+}
+
+function renderPhases(){
+  var box=document.getElementById("phases"); box.textContent="";
+  var cur=phaseIndex();
+  PHASES.forEach(function(p,i){
+    var items=allItems(p),doneN=items.filter(function(it){return state.done[it[0]];}).length;
+    var isCur=i===cur;
+    var det=el("details",{"class":"phase"+(isCur?" current":""),id:"fase-"+p.sq});
+    if(isCur||openSet[p.id]) det.open=true;
+    det.addEventListener("toggle",function(){ if(det.open) openSet[p.id]=true; else delete openSet[p.id]; });
+    var h=el("h3",{text:p.name}); if(isCur) h.appendChild(el("span",{"class":"here",text:"você está aqui"}));
+    var sum=el("summary",null,
+      el("span",{"class":"badge "+(i%2===0?"l":"d"),text:p.sq}),
+      el("span",{"class":"sum-title"},h,el("span",{"class":"range",text:p.range+" · "+p.time})),
+      el("span",{"class":"count",text:doneN+"/"+items.length}));
+    det.appendChild(sum);
+    var body=el("div",{"class":"phase-body"});
+    var bar=el("div",{"class":"bar"},el("i",null)); bar.firstChild.style.width=(items.length?Math.round(100*doneN/items.length):0)+"%";
+    body.appendChild(el("div",{style:"padding-top:14px"},bar));
+    body.appendChild(el("p",{text:p.goal}));
+    p.blocks.forEach(function(b){
+      var ul=el("ul",{"class":"items"});
+      b[1].forEach(function(it){ ul.appendChild(itemRow(it[0],it)); });
+      body.appendChild(el("div",{"class":"block"},el("span",{"class":"eyebrow",text:b[0]}),ul));
+    });
+    var gl=el("ul",{"class":"items"});
+    p.gates.forEach(function(g,gi){ gl.appendChild(itemRow("g-"+p.id+"-"+gi,null,g)); });
+    body.appendChild(el("div",{"class":"gates"},el("span",{"class":"eyebrow",text:"Sinais de passagem"}),gl));
+    if(!isCur){
+      var set=el("button",{type:"button","class":"btn ghost",text:"Esta é a minha fase atual"});
+      set.addEventListener("click",function(){ state.phase=p.id; persist(); renderAll(); });
+      body.appendChild(el("div",null,set));
+    } else if(i<PHASES.length-1){
+      var allG=p.gates.every(function(g,gi){ return state.done["g-"+p.id+"-"+gi]; });
+      var adv=el("button",{type:"button","class":"btn"+(allG?"":" ghost"),text:"Avançar o peão para "+PHASES[i+1].sq});
+      adv.addEventListener("click",function(){ state.phase=PHASES[i+1].id; openSet[PHASES[i+1].id]=true; persist(); renderAll(); var t=document.getElementById("fase-"+PHASES[i+1].sq); if(t) t.scrollIntoView({block:"start"}); });
+      body.appendChild(el("div",{"class":"row"},adv,el("span",{"class":"small muted",text:allG?"Todos os sinais marcados.":"Marque os sinais de passagem antes de avançar."})));
+    }
+    det.appendChild(body);
+    box.appendChild(det);
+  });
+}
+
+function itemRow(id,it,plain){
+  var cb=el("input",{type:"checkbox",id:"c-"+id});
+  cb.checked=!!state.done[id];
+  var li=el("li",{"class":cb.checked?"done":""});
+  var right=el("div",null);
+  if(it){
+    cb.setAttribute("aria-label","Concluído: "+it[4]);
+    right.appendChild(el("div",{"class":"it-title"},itemLink(it)));
+    var tags=el("div",{"class":"tags"});
+    tags.appendChild(el("span",{"class":"tag k-"+it[1],text:KIND[it[1]]}));
+    if(it[2]) tags.appendChild(el("span",{"class":"tag",text:it[2]}));
+    if(it[3]==="g") tags.appendChild(el("span",{"class":"tag",text:"grátis"}));
+    if(it[3]==="l") tags.appendChild(el("span",{"class":"tag",text:"livro"}));
+    right.appendChild(tags);
+    right.appendChild(el("div",{"class":"note",text:it[6]}));
+  } else {
+    right.appendChild(el("label",{"for":"c-"+id,text:plain}));
+  }
+  cb.addEventListener("change",function(){
+    if(cb.checked) state.done[id]=1; else delete state.done[id];
+    persist(); renderPhases(); renderToday();
+    var again=document.getElementById("c-"+id); if(again) again.focus();
+  });
+  li.appendChild(cb); li.appendChild(right);
+  return li;
+}
+
+function renderTools(){
+  var box=document.getElementById("tools"); box.textContent="";
+  TOOLS.forEach(function(t){ box.appendChild(el("div",{"class":"tool"},el("a",{href:t[1],text:t[0]}),el("span",{"class":"small muted",text:t[2]}))); });
+}
+function renderAll(){ renderFile(); renderToday(); renderRating(); renderPhases(); }
+
+/* ---------- ações ---------- */
+document.getElementById("done-today").addEventListener("click",function(){
+  var t=today(),i=state.sessions.indexOf(t);
+  if(i>=0) state.sessions.splice(i,1); else state.sessions.push(t);
+  persist(); renderToday();
+});
+document.getElementById("rating-form").addEventListener("submit",function(ev){
+  ev.preventDefault();
+  var inp=document.getElementById("rating-input"),r=parseInt(inp.value,10);
+  if(!(r>=400&&r<=3200)){ inp.focus(); return; }
+  var t=today(),last=state.ratings[state.ratings.length-1];
+  if(last&&last.d===t) last.r=r; else state.ratings.push({d:t,r:r});
+  if(!state.phase) state.phase=PHASES[phaseForRating(r)].id;
+  inp.value="";
+  persist(); renderAll();
+});
+
+/* ---------- levar o progresso entre aparelhos ---------- */
+function encodeState(){
+  var json=JSON.stringify(state);
+  return btoa(unescape(encodeURIComponent(json))).replace(/\+/g,"-").replace(/\//g,"_").replace(/=+$/,"");
+}
+function decodeState(code){
+  code=String(code).trim();
+  var i=code.indexOf("#p="); if(i>=0) code=code.slice(i+3);
+  code=code.replace(/\s+/g,"").replace(/-/g,"+").replace(/_/g,"/");
+  while(code.length%4) code+="=";
+  var obj=JSON.parse(decodeURIComponent(escape(atob(code))));
+  if(!obj||typeof obj!=="object"||!obj.done) throw new Error("formato");
+  return normalize(obj);
+}
+function mergeState(o){
+  var k;
+  for(k in o.done) state.done[k]=1;
+  o.sessions.forEach(function(d){ if(state.sessions.indexOf(d)<0) state.sessions.push(d); });
+  state.sessions.sort();
+  var byDate={};
+  state.ratings.forEach(function(x){ byDate[x.d]=x.r; });
+  o.ratings.forEach(function(x){ if(!(x.d in byDate)) byDate[x.d]=x.r; });
+  state.ratings=Object.keys(byDate).sort().map(function(d){ return {d:d,r:byDate[d]}; });
+  function idx(id){ for(var i=0;i<PHASES.length;i++){ if(PHASES[i].id===id) return i; } return -1; }
+  if(idx(o.phase)>idx(state.phase)) state.phase=o.phase;
+}
+function backupMsg(t){ document.getElementById("backup-msg").textContent=t; }
+function importCode(code){
+  try{ mergeState(decodeState(code)); }
+  catch(e){ backupMsg("Não consegui ler esse código. Copie de novo no outro aparelho, inteiro, e cole aqui."); return false; }
+  persist(); renderAll();
+  backupMsg("Progresso importado e salvo neste aparelho.");
+  return true;
+}
+function copyText(text,okMsg){
+  var out=document.getElementById("code-out");
+  function fallback(){ out.hidden=false; out.value=text; out.focus(); out.select(); backupMsg("Não consegui copiar sozinho. Selecione o texto acima e copie."); }
+  try{
+    if(navigator.clipboard&&navigator.clipboard.writeText){
+      navigator.clipboard.writeText(text).then(function(){ out.hidden=true; backupMsg(okMsg); },fallback);
+    } else fallback();
+  }catch(e){ fallback(); }
+}
+document.getElementById("copy-code").addEventListener("click",function(){
+  copyText(encodeState(),"Código copiado. Cole no campo “Código ou link” do outro aparelho.");
+});
+document.getElementById("copy-link").addEventListener("click",function(){
+  copyText(location.href.split("#")[0]+"#p="+encodeState(),"Link copiado. Abra-o no outro aparelho e o progresso entra sozinho.");
+});
+document.getElementById("import-form").addEventListener("submit",function(ev){
+  ev.preventDefault();
+  var inp=document.getElementById("import-input");
+  if(!inp.value.trim()){ inp.focus(); return; }
+  if(importCode(inp.value)) inp.value="";
+});
+// dentro do Claude o endereço da página não carrega o código; lá vale só o código copiado
+var hosted=!!window.claude||/claude|anthropic/i.test(location.hostname);
+if(hosted) document.getElementById("copy-link").hidden=true;
+
+loadLocal();
+renderTools();
+renderAll();
+if(!hosted&&location.hash.indexOf("#p=")===0){
+  var ok=importCode(location.hash);
+  try{ history.replaceState(null,"",location.href.split("#")[0]); }catch(e){}
+  if(ok){ var sec=document.getElementById("aparelhos"); if(sec) sec.scrollIntoView({block:"start"}); }
+}
+connect();
+})();
+</script>
+</body>
+</html>
